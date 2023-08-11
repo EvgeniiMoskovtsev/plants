@@ -4,6 +4,27 @@ import serial
 import time
 import pytz
 from datetime import datetime
+import cv2
+import numpy as np
+
+def is_conditioner_on_off_by_photo():
+    h1, h2 = 620, 680
+    w1, w2 = 210, 260
+    img = cv2.imread("/home/evgenii/plants_final/image.jpg")
+    img_cropped = img[h1:h2, w1:w2]
+    hsv_frame = cv2.cvtColor(img_cropped, cv2.COLOR_BGR2HSV)
+    lower_green = np.array([35, 100, 100])
+    upper_green = np.array([85, 255, 255])
+    green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+    green_mask = green_mask / 255
+    flag = None
+    if np.sum(green_mask) > 100:
+        print("Зеленых пикселей больше 100")
+        return True
+    else:
+        print("Зеленых пикселей меньше 100")
+        return False
+
 
 # Класс пользователя
 class User(UserMixin):
@@ -38,6 +59,27 @@ def read_sensor_data():
         t, h = "Error", "Error"
         print("Debug: Температура и Влажность вернули ошибку")
     return t, h
+
+def toggle_conditioner_power():
+    max_attempts = 3  # максимальное количество попыток
+    attempts = 0
+    global conditioner_status
+
+    while attempts < max_attempts:
+        ser.write(b'P')
+        time.sleep(5)  # дайте некоторое время на включение/выключение
+        # Проверьте состояние кондиционера с помощью фотографии
+        is_on = is_conditioner_on_off_by_photo()
+        if is_on is not None and is_on != conditioner_status:  # Если состояние изменилось
+            conditioner_status = is_on
+            print(f"Статус кондиционера после смены флага и проверки фото: {'Включен' if conditioner_status else 'Выключен'}")
+            return True
+        attempts += 1
+        print(f"Попытка {attempts}: не удалось изменить состояние кондиционера, повторная попытка.")
+
+    if attempts == max_attempts:
+        print("Не удалось изменить состояние кондиционера после максимального количества попыток.")
+        return False
 	
 def is_rest_need_func(conditioner_status):
     global last_turn_off_time
@@ -70,12 +112,14 @@ def control_temperature(t):
     if 4 <= current_time.hour < 7:
         if conditioner_status:
             print("Время от 3 до 7 утра, выключаю кондиционер")
-            ser.write(b'P')  # Выключить кондиционер
-            conditioner_status = False
+            toggle_conditioner_power()
+            #ser.write(b'P')  # Выключить кондиционер
+            #conditioner_status = False
     elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
         print("Время вне диапазона от 3 до 7 утра, включаю кондиционер")
-        ser.write(b'P')  # Включить кондиционер
-        conditioner_status = True
+        toggle_conditioner_power()
+        #ser.write(b'P')  # Включить кондиционер
+        #conditioner_status = True
     #is_rest_need = is_rest_need_func(conditioner_status)
     #if is_rest_need is not None:	
 	# Автоматическое выключение кондиционера каждые 6 часов на 10 минут
@@ -83,8 +127,7 @@ def control_temperature(t):
     #        print("Кондиционеру нужен отдых. Выключаю")
     #        ser.write(b'P')  # Выключить кондиционер
     #        conditioner_status = False
-		
-	
+
      #   if not conditioner_status and not is_rest_need:
      #       print("Кондиционер отдохнул. Включаю")
      #       ser.write(b'P')  # Включить кондиционер
@@ -175,10 +218,11 @@ def index():
 def control():
     cmd = request.args.get('cmd')
     if cmd == 'power':
-        ser.write(b'P')
-        global conditioner_status
+     #   ser.write(b'P')
+     #   global conditioner_status
         print("Статус кондиционера control до смены флага", conditioner_status)
-        conditioner_status = not conditioner_status
+        toggle_conditioner_power()
+     #   conditioner_status = not conditioner_status
         print("Статус кондиционера control после смены флага", conditioner_status)
     elif cmd == 'up':
         ser.write(b'I')
