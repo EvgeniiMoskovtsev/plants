@@ -6,6 +6,8 @@ import pytz
 from datetime import datetime
 import cv2
 import numpy as np
+from loguru import logger
+
 
 def is_conditioner_on_off_by_photo():
     h1, h2 = 620, 680
@@ -19,10 +21,10 @@ def is_conditioner_on_off_by_photo():
     green_mask = green_mask / 255
     flag = None
     if np.sum(green_mask) > 100:
-        print("Зеленых пикселей больше 100")
+        logger.info("Зеленых пикселей больше 100")
         return True
     else:
-        print("Зеленых пикселей меньше 100")
+        logger.info("Зеленых пикселей меньше 100")
         return False
 
 
@@ -38,8 +40,14 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+logger.add("/home/evgenii/plants_final/logs.log", rotation="500 MB", format="{time:YYYY-MM-DD at HH:mm:ss} | {message}")
+logger.info("Старт приложения")
 manual_control = False
-conditioner_status = False 
+
+logger.info("Спим 5 секунд и узнаем статус кондиционера")
+time.sleep(5)
+conditioner_status = is_conditioner_on_off_by_photo()
+logger.info("Статус кондиционера {}", conditioner_status)
 is_rest_need = False
 six_hours = 6 * 60 * 60 # 6 hours
 
@@ -54,10 +62,10 @@ def read_sensor_data():
     try:
         decoded_line = line.decode('utf-8').strip()
         t, h = map(float, decoded_line.split(',')) # Предположим, что температура и влажность разделены запятой
-        print(f"Debug: Температура = {t} °C, Влажность = {h} %") # Отладочная информация
+        logger.info(f"Debug: Температура = {t} °C, Влажность = {h} %") # Отладочная информация
     except:
         t, h = "Error", "Error"
-        print("Debug: Температура и Влажность вернули ошибку")
+        logger.info("Debug: Температура и Влажность вернули ошибку")
     return t, h
 
 def toggle_conditioner_power():
@@ -72,13 +80,13 @@ def toggle_conditioner_power():
         is_on = is_conditioner_on_off_by_photo()
         if is_on is not None and is_on != conditioner_status:  # Если состояние изменилось
             conditioner_status = is_on
-            print(f"Статус кондиционера после смены флага и проверки фото: {'Включен' if conditioner_status else 'Выключен'}")
+            logger.info(f"Статус кондиционера после смены флага и проверки фото: {'Включен' if conditioner_status else 'Выключен'}")
             return True
         attempts += 1
-        print(f"Попытка {attempts}: не удалось изменить состояние кондиционера, повторная попытка.")
+        logger.info(f"Попытка {attempts}: не удалось изменить состояние кондиционера, повторная попытка.")
 
     if attempts == max_attempts:
-        print("Не удалось изменить состояние кондиционера после максимального количества попыток.")
+        logger.info("Не удалось изменить состояние кондиционера после максимального количества попыток.")
         return False
 	
 def is_rest_need_func(conditioner_status):
@@ -89,14 +97,14 @@ def is_rest_need_func(conditioner_status):
     
     # Если кондиционер включен и пришло время для отдыха
     if conditioner_status and current_time - last_turn_off_time > six_hours:
-        print("Прошло 6 часов работы кондиционера. Выключаем")
+        logger.info("Прошло 6 часов работы кондиционера. Выключаем")
         last_turn_off_time = current_time
         rest_start_time = current_time  # Записываем время начала отдыха
         return True
     
     # Если кондиционер выключен, но уже прошло 10 минут от начала отдыха
     elif not conditioner_status and (current_time - rest_start_time) > (10 * 60):
-        print("Прошло 10 минут как кондиционер не работает. Включаем")
+        logger.info("Прошло 10 минут как кондиционер не работает. Включаем")
         rest_start_time = 0  # Сбросить время начала отдыха
         return False
     
@@ -111,12 +119,12 @@ def control_temperature(t):
     current_time = datetime.now(tz)
     if 4 <= current_time.hour < 7:
         if conditioner_status:
-            print("Время от 3 до 7 утра, выключаю кондиционер")
+            logger.info("Время от 4 до 7 утра, выключаю кондиционер")
             toggle_conditioner_power()
             #ser.write(b'P')  # Выключить кондиционер
             #conditioner_status = False
     elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
-        print("Время вне диапазона от 3 до 7 утра, включаю кондиционер")
+        logger.info("Время вне диапазона от 4 до 7 утра, включаю кондиционер")
         toggle_conditioner_power()
         #ser.write(b'P')  # Включить кондиционер
         #conditioner_status = True
@@ -190,7 +198,7 @@ def index():
     # Получаем текущее время в заданной временной зоне
     current_time = datetime.now(tz)
     formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("Статус кондиционера index", conditioner_status)
+    logger.info("Статус кондиционера index {}", conditioner_status)
     return render_template_string('''
     <html>
     <head>
@@ -220,10 +228,10 @@ def control():
     if cmd == 'power':
      #   ser.write(b'P')
      #   global conditioner_status
-        print("Статус кондиционера control до смены флага", conditioner_status)
+        logger.info("Статус кондиционера control до смены флага {}", conditioner_status)
         toggle_conditioner_power()
      #   conditioner_status = not conditioner_status
-        print("Статус кондиционера control после смены флага", conditioner_status)
+        logger.info("Статус кондиционера control после смены флага {}", conditioner_status)
     elif cmd == 'up':
         ser.write(b'I')
     elif cmd == 'down':
@@ -238,7 +246,9 @@ def control():
 @login_required
 def set_manual_control():
     global manual_control
+    logger.info("Меняю режим управления")
     manual_control = not manual_control
+    logger.info(f"Режим управления {'Manual' if manual_control else 'Auto'}") 
     return redirect('/')
 
 @app.route('/image')
