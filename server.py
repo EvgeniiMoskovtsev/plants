@@ -1,5 +1,7 @@
 from flask import Flask, render_template_string, send_from_directory, redirect, request
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user
+from flask_apscheduler import APScheduler
+
 import serial
 import time
 import pytz
@@ -33,12 +35,6 @@ class User(UserMixin):
     def __init__(self, id):
         self.id = id
 
-app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Не забудьте заменить на надежный ключ в продакшене
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
 
 logger.add("/home/evgenii/plants_final/logs.log", rotation="500 MB", format="{time:YYYY-MM-DD at HH:mm:ss} | {message}")
 logger.info("Старт приложения")
@@ -54,9 +50,22 @@ six_hours = 6 * 60 * 60 # 6 hours
 rest_start_time = 0
 rest_time = 60 * 10 # 10 min
 last_turn_off_time = time.time() 
-
-
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
+
+
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'  # Не забудьте заменить на надежный ключ в продакшене
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+scheduler = APScheduler()
+scheduler.api_enabled = True
+scheduler.init_app(app)
+scheduler.start()
+
 def read_sensor_data():
     line = ser.readline()   # читайте строку из последовательного порта
     try:
@@ -109,8 +118,9 @@ def is_rest_need_func(conditioner_status):
         return False
     
     return None
-	
-def control_temperature(t):
+
+@scheduler.task('interval',, seconds=30, misfire_grace_time=10)
+def conditioner_scheduler(t):
     global conditioner_status
     if manual_control:
         return
@@ -126,34 +136,6 @@ def control_temperature(t):
     elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
         logger.info("Время вне диапазона от 4 до 7 утра, включаю кондиционер")
         toggle_conditioner_power()
-        #ser.write(b'P')  # Включить кондиционер
-        #conditioner_status = True
-    #is_rest_need = is_rest_need_func(conditioner_status)
-    #if is_rest_need is not None:	
-	# Автоматическое выключение кондиционера каждые 6 часов на 10 минут
-    #    if conditioner_status and is_rest_need:
-    #        print("Кондиционеру нужен отдых. Выключаю")
-    #        ser.write(b'P')  # Выключить кондиционер
-    #        conditioner_status = False
-
-     #   if not conditioner_status and not is_rest_need:
-     #       print("Кондиционер отдохнул. Включаю")
-     #       ser.write(b'P')  # Включить кондиционер
-     #       conditioner_status = True
-    #else:
-    #    pass
-
-	# Контроль температуры
-    #elif t > 28 and not conditioner_status:
-    #    print("Температура больше 28, включаю кондиционер")
-    #    ser.write(b'P')  # Включить кондиционер
-    #    conditioner_status = True
-    #elif t < 24 and conditioner_status:
-    #    print("Температура меньше 24, выключаю кондиционер")
-    #    ser.write(b'P')  # Выключить кондиционер
-    #    conditioner_status = False
-
-    #print(f"Debug: Состояние кондиционера после управления температурой: {'Включен' if conditioner_status else 'Выключен'}")
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -191,7 +173,6 @@ def index():
     global conditioner_status
     global manual_control
     t, h = read_sensor_data()
-    control_temperature(t)
     #print(f"Debug: Состояние кондиционера в index: {'Включен' if conditioner_status else 'Выключен'}")
     tz = pytz.timezone('Asia/Tbilisi')
     
