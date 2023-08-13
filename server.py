@@ -119,8 +119,8 @@ def is_rest_need_func(conditioner_status):
     
     return None
 
-@scheduler.task('interval',, seconds=30, misfire_grace_time=10)
-def conditioner_scheduler(t):
+@scheduler.task('interval', seconds=30, misfire_grace_time=10)
+def conditioner_scheduler():
     global conditioner_status
     if manual_control:
         return
