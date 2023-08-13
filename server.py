@@ -184,13 +184,22 @@ def index():
     <html>
     <head>
         <title>Image Viewer</title>
-        <meta http-equiv="refresh" content="5">
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>
+            function updateImage() {
+                // Меняем URL изображения, добавляя временную метку, чтобы избежать кеширования
+                $('#image').attr('src', '/image?timestamp=' + new Date().getTime());
+            }
+
+            // Обновление изображения каждые 6 секунд
+            setInterval(updateImage, 6000);
+        </script>
     </head>
     <body>
-        <img src="/image" width="480" height="720"><br>
+        <img id="image" src="/image" width="480" height="720"><br>
         <p>Текущее время: {{ formatted_time }}</p>
         <p>Температура: {{ t }} °C</p>
-		<p>Влажность: {{ h }} %</p>
+        <p>Влажность: {{ h }} %</p>
         <p>Состояние кондиционера: {{ "Включен" if conditioner_status else "Выключен" }}</p>
         <p>Режим управления: {{ "Ручное Управление" if manual_control else "Автоматическое Управление" }}</p>
         <button onclick="location.href='/set_manual_control'">Переключить на {{ "Ручное Управление" if not manual_control else "Автоматическое Управление" }}</button>
