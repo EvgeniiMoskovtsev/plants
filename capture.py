@@ -1,6 +1,7 @@
 import time
 import os
 from picamera import PiCamera
+from fractions import Fraction
 from PIL import Image
 import numpy as np
 import datetime
@@ -13,7 +14,11 @@ lut_sqrt = np.zeros((256), dtype=np.uint8)
 for i in range(0, 256):
     lut_sqrt[i] = (i * 255) ** (1/2)
 
-with PiCamera() as camera:
+with PiCamera(framerate=Fraction(1,6), sensor_mode=3) as camera:
+    camera.shutter_speed = 3000000
+    camera.iso = 400
+    time.sleep(30)
+    camera.exposure_mode = 'off'
     path = '/home/evgenii/plants_final/image.jpg'
     while True:
         camera.capture(path)
@@ -25,7 +30,7 @@ with PiCamera() as camera:
         img_array = np.array(image)
 
         # Применяем LUT (например, lut_sqrt для корневой функции)
-        img_array = lut_sqrt[img_array]
+        #img_array = lut_sqrt[img_array]
 
         # Создаем изображение из обновленного массива
         processed_image = Image.fromarray(img_array)
