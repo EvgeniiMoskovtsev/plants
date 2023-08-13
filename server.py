@@ -40,8 +40,8 @@ logger.add("/home/evgenii/plants_final/logs.log", rotation="500 MB", format="{ti
 logger.info("Старт приложения")
 manual_control = False
 
-logger.info("Спим 5 секунд и узнаем статус кондиционера")
-time.sleep(5)
+logger.info("Спим 10 секунд и узнаем статус кондиционера")
+time.sleep(10)
 conditioner_status = is_conditioner_on_off_by_photo()
 logger.info("Статус кондиционера {}", conditioner_status)
 is_rest_need = False
