@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from loguru import logger
 
-
+@logger.catch
 def is_conditioner_on_off_by_photo():
     h1, h2 = 620, 680
     w1, w2 = 210, 260
@@ -66,6 +66,7 @@ scheduler.api_enabled = True
 scheduler.init_app(app)
 scheduler.start()
 
+@logger.catch
 def read_sensor_data():
     line = ser.readline()   # читайте строку из последовательного порта
     try:
@@ -77,6 +78,7 @@ def read_sensor_data():
         logger.info("Debug: Температура и Влажность вернули ошибку")
     return t, h
 
+@logger.catch
 def toggle_conditioner_power():
     max_attempts = 3  # максимальное количество попыток
     attempts = 0
@@ -97,30 +99,9 @@ def toggle_conditioner_power():
     if attempts == max_attempts:
         logger.info("Не удалось изменить состояние кондиционера после максимального количества попыток.")
         return False
-	
-def is_rest_need_func(conditioner_status):
-    global last_turn_off_time
-    global rest_start_time
-    global six_hours
-    current_time = time.time()
     
-    # Если кондиционер включен и пришло время для отдыха
-    if conditioner_status and current_time - last_turn_off_time > six_hours:
-        logger.info("Прошло 6 часов работы кондиционера. Выключаем")
-        last_turn_off_time = current_time
-        rest_start_time = current_time  # Записываем время начала отдыха
-        return True
-    
-    # Если кондиционер выключен, но уже прошло 10 минут от начала отдыха
-    elif not conditioner_status and (current_time - rest_start_time) > (10 * 60):
-        logger.info("Прошло 10 минут как кондиционер не работает. Включаем")
-        rest_start_time = 0  # Сбросить время начала отдыха
-        return False
-    
-    return None
-
-@scheduler.task('interval',, seconds=30, misfire_grace_time=10)
-def conditioner_scheduler(t):
+@scheduler.task('cron', minute='*')
+def conditioner_scheduler():
     global conditioner_status
     if manual_control:
         return
