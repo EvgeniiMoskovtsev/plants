@@ -12,7 +12,7 @@ from loguru import logger
 
 @logger.catch
 def is_conditioner_on_off_by_photo():
-    h1, h2 = 620, 680
+    h1, h2 = 640, 720
     w1, w2 = 210, 260
     img = cv2.imread("/home/evgenii/plants_final/image.jpg")
     img_cropped = img[h1:h2, w1:w2]
@@ -111,12 +111,12 @@ def conditioner_scheduler():
     if 4 <= current_time.hour < 7:
         if conditioner_status:
             logger.info("Время от 4 до 7 утра, выключаю кондиционер")
-            toggle_conditioner_power()
+            conditioner_status = toggle_conditioner_power()
             #ser.write(b'P')  # Выключить кондиционер
             #conditioner_status = False
     elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
         logger.info("Время вне диапазона от 4 до 7 утра, включаю кондиционер")
-        toggle_conditioner_power()
+        conditioner_status = toggle_conditioner_power()
 
 @login_manager.user_loader
 def load_user(user_id):
