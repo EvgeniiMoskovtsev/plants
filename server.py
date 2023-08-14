@@ -168,7 +168,7 @@ def index():
         <meta http-equiv="refresh" content="5">
     </head>
     <body>
-        <img src="/image" width="480" height="720"><br>
+        <img src="/image" width="480" height="736"><br>
         <p>Текущее время: {{ formatted_time }}</p>
         <p>Температура: {{ t }} °C</p>
 		<p>Влажность: {{ h }} %</p>

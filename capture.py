@@ -4,6 +4,7 @@ from picamera import PiCamera
 from PIL import Image
 import numpy as np
 import datetime
+import cv2
 
 logged_path = '/home/evgenii/plants_final/logged_images'
 logged_last_saved_time = 0
@@ -15,31 +16,21 @@ for i in range(0, 256):
 
 with PiCamera() as camera:
     path = '/home/evgenii/plants_final/image.jpg'
+    camera.resolution = (736, 480)
+    time.sleep(2)
     while True:
-        camera.capture(path)
-
-        # Открываем изображение с помощью PIL
-        image = Image.open(path)
-
-        # Преобразуем изображение в массив numpy
-        img_array = np.array(image)
-
+        img_array = np.empty((480, 736, 3), dtype=np.uint8)
+        camera.capture(img_array, 'rgb')
         # Применяем LUT (например, lut_sqrt для корневой функции)
         img_array = lut_sqrt[img_array]
 
         # Создаем изображение из обновленного массива
-        processed_image = Image.fromarray(img_array)
-
-        # Поворачиваем изображение на 90 градусов
-        rotated_image = processed_image.rotate(270, expand=True)
-
-        # Сохраняем измененное изображение
-        rotated_image.save(path)
+        rotated_image = np.rot90(img_array,3)
         # Сохраняем копию изображения каждый час
         if time.time() - logged_last_saved_time >= 3600:
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             logged_image_path = os.path.join(logged_path, f'image_{timestamp}.jpg')
-            rotated_image.save(logged_image_path)
+            cv2.imwrite(logged_image_path, rotated_image)
             logged_last_saved_time = time.time()
-
+        cv2.imwrite(path, rotated_image)
         time.sleep(5)
