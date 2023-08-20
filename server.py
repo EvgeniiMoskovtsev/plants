@@ -72,10 +72,9 @@ def read_sensor_data():
     try:
         decoded_line = line.decode('utf-8').strip()
         t, h = map(float, decoded_line.split(',')) # Предположим, что температура и влажность разделены запятой
-        logger.info(f"Debug: Температура = {t} °C, Влажность = {h} %") # Отладочная информация
     except:
         t, h = "Error", "Error"
-        logger.info("Debug: Температура и Влажность вернули ошибку")
+    time.sleep(2) # Читать только раз в 2 секунды
     return t, h
 
 @logger.catch
@@ -86,8 +85,8 @@ def toggle_conditioner_power():
 
     while attempts < max_attempts:
         ser.write(b'P')
-        time.sleep(5)  # дайте некоторое время на включение/выключение
-        # Проверьте состояние кондиционера с помощью фотографии
+        logger.info("Попытка изменить статус кондиционера. Спим 11 секунд")
+        time.sleep(11)  # дайте некоторое время на включение/выключение
         is_on = is_conditioner_on_off_by_photo()
         if is_on is not None and is_on != conditioner_status:  # Если состояние изменилось
             conditioner_status = is_on
@@ -117,7 +116,9 @@ def conditioner_scheduler():
     elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
         logger.info("Время вне диапазона от 4 до 7 утра, включаю кондиционер")
         conditioner_status = toggle_conditioner_power()
-
+    else:
+        t,h = read_sensor_data()
+        logger.info("Время: {}, температура: {}, влажность: {}", current_time, t, h) 
 @login_manager.user_loader
 def load_user(user_id):
     return User(user_id)
