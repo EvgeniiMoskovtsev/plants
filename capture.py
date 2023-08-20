@@ -28,7 +28,7 @@ with PiCamera() as camera:
         rotated_image = np.rot90(img_array,3)
         # Сохраняем копию изображения каждый час
         if time.time() - logged_last_saved_time >= 3600:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
             logged_image_path = os.path.join(logged_path, f'image_{timestamp}.jpg')
             cv2.imwrite(logged_image_path, rotated_image)
             logged_last_saved_time = time.time()
