@@ -5,10 +5,12 @@ from flask_apscheduler import APScheduler
 import serial
 import time
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 import cv2
 import numpy as np
 from loguru import logger
+import json
+
 
 @logger.catch
 def is_conditioner_on_off_by_photo():
@@ -67,6 +69,26 @@ scheduler.init_app(app)
 scheduler.start()
 
 @logger.catch
+def round_up_to_hour(dt):
+    return datetime(dt.year, dt.month, dt.day, dt.hour) + timedelta(hours=1)
+
+@logger.catch
+def get_temperature_from_file():
+    with open("/home/evgenii/plants_final/logged_images/weather_data.json", "r") as f:
+        data = json.load(f)
+
+    tz = pytz.timezone('Asia/Tbilisi')
+    current_time = datetime.now(tz)
+    current_time_with_tz = datetime.now(tz)
+    current_time = current_time_with_tz.replace(tzinfo=None)
+    current_time_rounded = round_up_to_hour(current_time)
+
+    nearest_date = min(data, key=lambda x: abs(datetime.fromisoformat(x["date"]) - current_time_rounded))
+
+    return nearest_date["temperature"]
+
+
+@logger.catch
 def read_sensor_data():
     line = ser.readline()   # читайте строку из последовательного порта
     try:
@@ -107,18 +129,24 @@ def conditioner_scheduler():
 
     tz = pytz.timezone('Asia/Tbilisi')
     current_time = datetime.now(tz)
-    if 4 <= current_time.hour < 7:
-        if conditioner_status:
-            logger.info("Время от 4 до 7 утра, выключаю кондиционер")
-            conditioner_status = toggle_conditioner_power()
+    #if 4 <= current_time.hour < 7:
+    #    if conditioner_status:
+    #        logger.info("Время от 4 до 7 утра, выключаю кондиционер")
+    #        conditioner_status = toggle_conditioner_power()
             #ser.write(b'P')  # Выключить кондиционер
             #conditioner_status = False
-    elif not conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
-        logger.info("Время вне диапазона от 4 до 7 утра, включаю кондиционер")
+    logger.info("Читаю данные прогноза погоды")
+    temperature = get_temperature_from_file()
+    logger.info("Температура {} градусов", temperature)
+    if temperature > 26 and not conditioner_status:
+        logger.info("Температура больше 26 и кондиционер выключен. Включаю")
+        conditioner_status = toggle_conditioner_power()
+    elif temperature < 24 and conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
+        logger.info("Температура меньше 24 и кондиционер включен. Выключаю")
         conditioner_status = toggle_conditioner_power()
     else:
         t,h = read_sensor_data()
-        logger.info("Время: {}, температура: {}, влажность: {}", current_time, t, h) 
+        logger.info("Время: {}, Датчик: температура: {}, влажность: {}", current_time, t, h) 
 @login_manager.user_loader
 def load_user(user_id):
     return User(user_id)
