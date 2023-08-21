@@ -52,7 +52,7 @@ six_hours = 6 * 60 * 60 # 6 hours
 rest_start_time = 0
 rest_time = 60 * 10 # 10 min
 last_turn_off_time = time.time() 
-ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+#ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 
 
 
@@ -92,23 +92,31 @@ def get_temperature_from_file():
 def read_sensor_data():
     time.sleep(2)
     try:
-        # Чтение данных от первого датчика
-        line1 = ser.readline()
-        decoded_line1 = line1.decode('utf-8').strip()
-        t1, h1 = map(float, decoded_line1.split(','))
+        with serial.Serial('/dev/ttyACM0', 9600, timeout=2) as ser:
+            # Чтение данных от первого датчика
+            line1 = ser.readline()
+            decoded_line1 = line1.decode('utf-8').strip()
+            t1, h1 = map(float, decoded_line1.split(','))
+            
+            logger.info("Сенсор 1, t {} h {}", t1, h1)
 
-        # Чтение данных от второго датчика
-        line2 = ser.readline()
-        decoded_line2 = line2.decode('utf-8').strip()
-        t2, h2 = map(float, decoded_line2.split(','))
+            # Чтение данных от второго датчика
+            line2 = ser.readline()
+            decoded_line2 = line2.decode('utf-8').strip()
+            t2, h2 = map(float, decoded_line2.split(','))
+            
+            logger.info("Сенсор 2, t {} h {}", t2, h2)
 
-        # Вычисление средних значений
-        t_avg = (t1 + t2) / 2
-        h_avg = (h1 + h2) / 2
-        
-        return t_avg, h_avg
+            # Вычисление средних значений
+            t_avg = (t1 + t2) / 2
+            h_avg = (h1 + h2) / 2
+            
+            logger.info("Average, t {} h {}", t_avg, h_avg)
+            
+            return t_avg, h_avg
 
     except Exception as e:
+        logger.info("Ошибка при чтении данных с сенсора. {}", e)
         return "Error", "Error"
 
 @logger.catch
@@ -118,7 +126,8 @@ def toggle_conditioner_power():
     global conditioner_status
 
     while attempts < max_attempts:
-        ser.write(b'P')
+        with serial.Serial('/dev/ttyACM0', 9600, timeout=2) as ser:
+            ser.write(b'P')
         logger.info("Попытка изменить статус кондиционера. Спим 11 секунд")
         time.sleep(11)  # дайте некоторое время на включение/выключение
         is_on = is_conditioner_on_off_by_photo()
@@ -140,7 +149,7 @@ def conditioner_scheduler():
 
     tz = pytz.timezone('Asia/Tbilisi')
     current_time = datetime.now(tz)
-    if 4 <= current_time.hour < 7:
+    if 3 <= current_time.hour < 7:
         if conditioner_status:
             logger.info("Время от 3 до 7 утра, выключаю кондиционер")
             toggle_conditioner_power()
@@ -148,7 +157,7 @@ def conditioner_scheduler():
         if not conditioner_status:
             logger.info("Время больше 7 утра, включаю кондиционер")
             toggle_conditioner_power()
-    logger.info("Ничего не надо делать")
+    logger.info("Ничего не надо делать, время {}", current_time)
             #ser.write(b'P')  # Выключить кондиционер
             #conditioner_status = False
     #logger.info("Читаю данные прогноза погоды")
@@ -205,7 +214,6 @@ def index():
     # Получаем текущее время в заданной временной зоне
     current_time = datetime.now(tz)
     formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    logger.info("Статус кондиционера index {}", conditioner_status)
     return render_template_string('''
     <html>
     <head>
@@ -231,23 +239,24 @@ def index():
 @app.route('/control')
 @login_required
 def control():
-    cmd = request.args.get('cmd')
-    if cmd == 'power':
-     #   ser.write(b'P')
-     #   global conditioner_status
-        logger.info("Статус кондиционера control до смены флага {}", conditioner_status)
-        toggle_conditioner_power()
-     #   conditioner_status = not conditioner_status
-        logger.info("Статус кондиционера control после смены флага {}", conditioner_status)
-    elif cmd == 'up':
-        ser.write(b'I')
-    elif cmd == 'down':
-        ser.write(b'D')
-    elif cmd == 'fan':
-        ser.write(b'S')
+    with serial.Serial('/dev/ttyACM0', 9600, timeout=2) as ser:
+        cmd = request.args.get('cmd')
+        if cmd == 'power':
+         #   ser.write(b'P')
+         #   global conditioner_status
+            logger.info("Статус кондиционера control до смены флага {}", conditioner_status)
+            toggle_conditioner_power()
+         #   conditioner_status = not conditioner_status
+            logger.info("Статус кондиционера control после смены флага {}", conditioner_status)
+        elif cmd == 'up':
+            ser.write(b'I')
+        elif cmd == 'down':
+            ser.write(b'D')
+        elif cmd == 'fan':
+            ser.write(b'S')
 
-	# Вернуться обратно на главную страницу
-    return redirect('/')
+        # Вернуться обратно на главную страницу
+        return redirect('/')
 
 @app.route('/set_manual_control')
 @login_required
