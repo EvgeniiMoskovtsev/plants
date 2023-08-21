@@ -90,14 +90,26 @@ def get_temperature_from_file():
 
 @logger.catch
 def read_sensor_data():
-    line = ser.readline()   # читайте строку из последовательного порта
+    time.sleep(2)
     try:
-        decoded_line = line.decode('utf-8').strip()
-        t, h = map(float, decoded_line.split(',')) # Предположим, что температура и влажность разделены запятой
-    except:
-        t, h = "Error", "Error"
-    time.sleep(2) # Читать только раз в 2 секунды
-    return t, h
+        # Чтение данных от первого датчика
+        line1 = ser.readline()
+        decoded_line1 = line1.decode('utf-8').strip()
+        t1, h1 = map(float, decoded_line1.split(','))
+
+        # Чтение данных от второго датчика
+        line2 = ser.readline()
+        decoded_line2 = line2.decode('utf-8').strip()
+        t2, h2 = map(float, decoded_line2.split(','))
+
+        # Вычисление средних значений
+        t_avg = (t1 + t2) / 2
+        h_avg = (h1 + h2) / 2
+        
+        return t_avg, h_avg
+
+    except Exception as e:
+        return "Error", "Error"
 
 @logger.catch
 def toggle_conditioner_power():
@@ -113,13 +125,12 @@ def toggle_conditioner_power():
         if is_on is not None and is_on != conditioner_status:  # Если состояние изменилось
             conditioner_status = is_on
             logger.info(f"Статус кондиционера после смены флага и проверки фото: {'Включен' if conditioner_status else 'Выключен'}")
-            return True
+            return 
         attempts += 1
         logger.info(f"Попытка {attempts}: не удалось изменить состояние кондиционера, повторная попытка.")
 
     if attempts == max_attempts:
         logger.info("Не удалось изменить состояние кондиционера после максимального количества попыток.")
-        return False
     
 @scheduler.task('cron', minute='*')
 def conditioner_scheduler():
@@ -129,24 +140,29 @@ def conditioner_scheduler():
 
     tz = pytz.timezone('Asia/Tbilisi')
     current_time = datetime.now(tz)
-    #if 4 <= current_time.hour < 7:
-    #    if conditioner_status:
-    #        logger.info("Время от 4 до 7 утра, выключаю кондиционер")
-    #        conditioner_status = toggle_conditioner_power()
+    if 4 <= current_time.hour < 7:
+        if conditioner_status:
+            logger.info("Время от 3 до 7 утра, выключаю кондиционер")
+            toggle_conditioner_power()
+    else:
+        if not conditioner_status:
+            logger.info("Время больше 7 утра, включаю кондиционер")
+            toggle_conditioner_power()
+    logger.info("Ничего не надо делать")
             #ser.write(b'P')  # Выключить кондиционер
             #conditioner_status = False
-    logger.info("Читаю данные прогноза погоды")
-    temperature = get_temperature_from_file()
-    logger.info("Температура {} градусов", temperature)
-    if temperature > 26 and not conditioner_status:
-        logger.info("Температура больше 26 и кондиционер выключен. Включаю")
-        conditioner_status = toggle_conditioner_power()
-    elif temperature < 24 and conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
-        logger.info("Температура меньше 24 и кондиционер включен. Выключаю")
-        conditioner_status = toggle_conditioner_power()
-    else:
-        t,h = read_sensor_data()
-        logger.info("Время: {}, Датчик: температура: {}, влажность: {}", current_time, t, h) 
+    #logger.info("Читаю данные прогноза погоды")
+    #temperature = get_temperature_from_file()
+    #logger.info("Температура {} градусов", temperature)
+    #if temperature > 26 and not conditioner_status:
+    #    logger.info("Температура больше 26 и кондиционер выключен. Включаю")
+    #    conditioner_status = toggle_conditioner_power()
+    #elif temperature < 24 and conditioner_status: # Если текущее время вне диапазона и кондиционер выключен
+    #    logger.info("Температура меньше 24 и кондиционер включен. Выключаю")
+    #    conditioner_status = toggle_conditioner_power()
+    #else:
+    #    t,h = read_sensor_data()
+    #    logger.info("Время: {}, Датчик: температура: {}, влажность: {}", current_time, t, h) 
 @login_manager.user_loader
 def load_user(user_id):
     return User(user_id)
